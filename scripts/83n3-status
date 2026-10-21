@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+echo "=================================================="
+echo " LENOVO 83N3 STATUS"
+echo "=================================================="
+
+echo
+echo "=== KERNEL ==="
+uname -r
+
+echo
+echo "Latest boot symlink:"
+readlink -f /boot/83n3-vmlinuz 2>/dev/null || true
+
+echo
+echo "=== DTB ==="
+
+if [ -e /proc/device-tree/lenovo-83n3-usb2-test ]; then
+    printf "fingerprint DTB marker: "
+    tr -d '\0' \
+        < /proc/device-tree/lenovo-83n3-usb2-test
+    echo
+else
+    echo "fingerprint DTB marker: NOT FOUND"
+fi
+
+printf "a800000 maximum-speed: "
+tr -d '\0' \
+    < /proc/device-tree/soc@0/usb@a800000/maximum-speed \
+    2>/dev/null || echo "MISSING"
+
+echo
+
+echo
+echo "=== FINGERPRINT ==="
+lsusb | grep -Ei '27c6:650a|Goodix' \
+    || echo "GOODIX NOT FOUND"
+
+echo
+echo "=== A800000 ==="
+readlink -f \
+    /sys/bus/platform/devices/a800000.usb/driver \
+    2>/dev/null \
+    || echo "UNBOUND"
+
+echo
+echo "=== DSP ==="
+
+for r in /sys/class/remoteproc/remoteproc*; do
+    [ -e "$r/name" ] || continue
+
+    printf "%s: " "$(cat "$r/name")"
+    cat "$r/state"
+done
+
+echo
+echo "=== BATTERY ==="
+
+if command -v upower >/dev/null; then
+    upower -i \
+        /org/freedesktop/UPower/devices/battery_qcom_battmgr_bat \
+        2>/dev/null |
+        grep -E \
+            'state:|percentage:|energy:|energy-full:' \
+        || true
+fi
+
+echo
+echo "=== GPU ==="
+
+GPU_LOG="$(
+    journalctl -b -k --no-pager 2>/dev/null |
+    grep -Ei 'Loaded GMU firmware|loaded qcom/gen71500|failed to load gen71500' || true
+)"
+
+if echo "$GPU_LOG" | grep -q 'Loaded GMU firmware'; then
+    echo "GPU firmware: OK"
+    echo "$GPU_LOG" |
+        grep -Ei 'loaded qcom/gen71500|Loaded GMU firmware' |
+        tail -3
+else
+    echo "GPU firmware: WARNING"
+    echo "$GPU_LOG" | tail -10
+fi
+
+echo
+echo "=================================================="

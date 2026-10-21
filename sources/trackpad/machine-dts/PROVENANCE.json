@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/jglathe/linux_ms_dev_kit.git",
+  "commit": "33237cf547a09d09d815d0cb81bf0fb560c95883",
+  "tag": "jg/ubuntu-qcom-x1e-7.1.2-jg-1",
+  "branch": "jg/ubuntu-qcom-x1e-oldconfig-7.1.y",
+  "status": " M arch/arm64/boot/dts/qcom/x126100-lenovo-ideapad-slim3.dts\n",
+  "source_license": "BSD-3-Clause (machine DTS SPDX header)",
+  "diff_matches": "0001-PR-CLEAN-83N3-ELAN-GPIO19.patch",
+  "scope": "Trackpad source history only. This source is not the full current combined touchpad/USB2/audio DTB."
+}

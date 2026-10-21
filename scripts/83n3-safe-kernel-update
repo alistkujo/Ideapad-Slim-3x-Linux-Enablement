@@ -1,0 +1,622 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Lenovo 83N3 / Fedora ARM64; Ubuntu owns the boot menu.
+UBUNTU_UUID="${UBUNTU_UUID:-}"
+
+NORMAL_ID="fedora-kde44-slim3"
+FALLBACK_ID="fedora-83n3-known-good"
+
+UM="/mnt/ubuntu-grub"
+
+DTB="/boot/ideapad-slim3-fixed.dtb"
+GOOD_DTB="/boot/ideapad-slim3-known-good.dtb"
+
+FW="/lib/firmware/qcom/x1p42100/LENOVO/83N3"
+
+REBOOT=0
+ALL=0
+
+for ARG in "$@"; do
+    case "$ARG" in
+        --reboot)
+            REBOOT=1
+            ;;
+        --all)
+            ALL=1
+            ;;
+        -h|--help)
+            echo "Usage:"
+            echo "  sudo 83n3-safe-kernel-update"
+            echo "  sudo 83n3-safe-kernel-update --reboot"
+            echo "  sudo 83n3-safe-kernel-update --all"
+            echo "  sudo 83n3-safe-kernel-update --all --reboot"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $ARG"
+            exit 1
+            ;;
+    esac
+done
+
+[[ "$EUID" -eq 0 ]] || { echo "Run this updater with sudo." >&2; exit 1; }
+[[ "$UBUNTU_UUID" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]] || {
+    echo 'Set the destination Ubuntu UUID explicitly: sudo env UBUNTU_UUID=<uuid> 83n3-safe-kernel-update [options]' >&2
+    exit 1
+}
+exec 9>/run/lock/83n3-safe-kernel-update.lock
+flock -n 9 || { echo "Another 83N3 updater is running." >&2; exit 1; }
+
+echo "=========================================================="
+echo " LENOVO 83N3 — SAFE KERNEL UPDATE"
+echo "=========================================================="
+
+OLDK="$(uname -r)"
+
+echo
+echo "Current proven-good kernel:"
+echo "  $OLDK"
+
+# ==========================================================
+# PREFLIGHT
+# ==========================================================
+
+echo
+echo "[1/10] Preflight"
+
+test -f "$DTB" || {
+    echo "ERROR: $DTB missing"
+    exit 1
+}
+
+test -f "/boot/vmlinuz-$OLDK" || {
+    echo "ERROR: current kernel image missing"
+    exit 1
+}
+
+test -f "/boot/initramfs-$OLDK.img" || {
+    echo "ERROR: current initramfs missing"
+    exit 1
+}
+
+for F in \
+    qcdxkmsucpurwa.mbn \
+    qcdxkmsuc8380.mbn \
+    qcadsp8380.mbn \
+    qccdsp8380.mbn
+do
+    test -f "$FW/$F" || {
+        echo "ERROR: critical firmware missing:"
+        echo "  $FW/$F"
+        exit 1
+    }
+done
+
+FEDORA_BOOT_UUID="$(findmnt -nro UUID /boot)"
+FEDORA_ROOT_UUID="$(findmnt -nro UUID /)"
+
+test -n "$FEDORA_BOOT_UUID"
+test -n "$FEDORA_ROOT_UUID"
+
+echo "Fedora /boot UUID : $FEDORA_BOOT_UUID"
+echo "Fedora root UUID  : $FEDORA_ROOT_UUID"
+
+# ==========================================================
+# UBUNTU GRUB
+# ==========================================================
+
+echo
+echo "[2/10] Mount Ubuntu GRUB"
+
+UBUNTU_DEV="$(blkid -U "$UBUNTU_UUID" 2>/dev/null || true)"
+
+test -n "$UBUNTU_DEV" || {
+    echo "ERROR: Ubuntu filesystem not found."
+    exit 1
+}
+
+# Reuse the existing Ubuntu mount, including a desktop-mounted partition.
+MOUNTED_UM="$(findmnt -rn -S "UUID=$UBUNTU_UUID" -o TARGET || true)"
+if [[ -n "$MOUNTED_UM" ]]; then
+    UM="${MOUNTED_UM%%$'\n'*}"
+fi
+mkdir -p "$UM"
+if mountpoint -q "$UM"; then
+    [[ "$(findmnt -nro UUID --target "$UM")" == "$UBUNTU_UUID" ]] || {
+        echo "ERROR: wrong filesystem mounted at $UM" >&2; exit 1;
+    }
+    mount -o remount,rw "$UM"
+else
+    mount -o rw "$UBUNTU_DEV" "$UM"
+fi
+[[ "$(findmnt -nro UUID --target "$UM")" == "$UBUNTU_UUID" ]] || exit 1
+
+GRUBCFG="$UM/boot/grub/grub.cfg"
+GRUBENV="$UM/boot/grub/grubenv"
+
+test -f "$GRUBCFG" || {
+    echo "ERROR: Ubuntu grub.cfg missing."
+    exit 1
+}
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP="$UM/root/83n3-grub-backup-$STAMP"
+
+mkdir -p "$BACKUP"
+
+cp -a "$GRUBCFG" "$BACKUP/grub.cfg"
+if [[ -f "$GRUBENV" ]]; then cp -a "$GRUBENV" "$BACKUP/grubenv"; fi
+
+# ==========================================================
+# FALLBACK = CURRENT RUNNING KERNEL
+# ==========================================================
+
+echo
+echo "[3/10] Preserve current kernel as KNOWN-GOOD fallback"
+
+cp -af "$DTB" "$GOOD_DTB"
+
+CMDLINE="$(
+    sed -E \
+        's/(^|[[:space:]])BOOT_IMAGE=[^[:space:]]+[[:space:]]*/ /' \
+        /proc/cmdline |
+    xargs
+)"
+
+FALLBACK_SOURCE="$UM/etc/grub.d/09_83n3_known_good"
+
+if [[ -f "$FALLBACK_SOURCE" ]]; then
+    cp -a "$FALLBACK_SOURCE" "$BACKUP/09_83n3_known_good"
+fi
+cat > "$FALLBACK_SOURCE" <<GRUBSCRIPT
+#!/bin/sh
+exec tail -n +3 "\$0"
+
+menuentry "Fedora KDE 44 ARM64 - Slim 3x [KNOWN GOOD: $OLDK]" --id $FALLBACK_ID {
+    search --no-floppy --fs-uuid --set=root $FEDORA_BOOT_UUID
+
+    echo 'Loading known-good Fedora kernel $OLDK...'
+    linux /vmlinuz-$OLDK $CMDLINE
+
+    echo 'Loading known-good Lenovo 83N3 DTB...'
+    devicetree /ideapad-slim3-known-good.dtb
+
+    echo 'Loading known-good Fedora initramfs...'
+    initrd /initramfs-$OLDK.img
+}
+GRUBSCRIPT
+
+chmod 0755 "$FALLBACK_SOURCE"
+
+echo "Fallback:"
+echo "  $OLDK"
+
+# ==========================================================
+# PATCH NORMAL ENTRY TO STABLE PATHS
+# ==========================================================
+
+echo
+echo "[4/10] Make normal Fedora GRUB entry version-independent"
+
+PATCHER="$(mktemp)"
+
+cat > "$PATCHER" <<'PY'
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+path = Path(sys.argv[1])
+target = sys.argv[2]
+
+text = path.read_text()
+replacement = None
+if len(sys.argv) > 3:
+    source = Path(sys.argv[3]).read_text().splitlines(keepends=True)
+    replacement = "".join(source[2:]).lstrip("\n").splitlines(keepends=True)
+
+lines = text.splitlines(keepends=True)
+out = []
+
+i = 0
+found = False
+
+while i < len(lines):
+    line = lines[i]
+
+    if (
+        line.lstrip().startswith("menuentry ")
+        and re.search(
+            r'--id\s+["\']?' + re.escape(target) + r'["\']?(?:\s|\{)',
+            line
+        )
+    ):
+        found = True
+
+        block = []
+        depth = 0
+        started = False
+
+        while i < len(lines):
+            cur = lines[i]
+            block.append(cur)
+
+            depth += cur.count("{")
+            depth -= cur.count("}")
+
+            if "{" in cur:
+                started = True
+
+            i += 1
+
+            if started and depth <= 0:
+                break
+
+        if replacement is not None:
+            out.extend(replacement)
+            continue
+
+        fixed = []
+
+        for b in block:
+
+            m = re.match(r'^(\s*)linux(?:efi)?\s+\S+(.*)$', b)
+
+            if m:
+                fixed.append(
+                    f"{m.group(1)}linux /83n3-vmlinuz{m.group(2)}\n"
+                )
+                continue
+
+            m = re.match(r'^(\s*)initrd(?:efi)?\s+.*$', b)
+
+            if m:
+                fixed.append(
+                    f"{m.group(1)}initrd /83n3-initramfs.img\n"
+                )
+                continue
+
+            m = re.match(r'^(\s*)devicetree\s+.*$', b)
+
+            if m:
+                fixed.append(
+                    f"{m.group(1)}devicetree /ideapad-slim3-fixed.dtb\n"
+                )
+                continue
+
+            fixed.append(b)
+
+        # Add DTB if somehow absent.
+        if not any(
+            "devicetree /ideapad-slim3-fixed.dtb" in x
+            for x in fixed
+        ):
+            new = []
+
+            for x in fixed:
+                if re.match(r'^\s*initrd(?:efi)?\s+', x):
+                    indent = re.match(r'^(\s*)', x).group(1)
+                    new.append(
+                        f"{indent}devicetree /ideapad-slim3-fixed.dtb\n"
+                    )
+
+                new.append(x)
+
+            fixed = new
+
+        out.extend(fixed)
+        continue
+
+    out.append(line)
+    i += 1
+
+if not found:
+    sys.exit(2)
+
+# Validate a staged live menu before atomically replacing it.
+fd, temporary = tempfile.mkstemp(prefix=".83n3-grub-", dir=path.parent)
+try:
+    with os.fdopen(fd, "w") as stream:
+        stream.write("".join(out))
+        stream.flush()
+        os.fsync(stream.fileno())
+    if path.name == "grub.cfg":
+        subprocess.run(["grub2-script-check", temporary], check=True)
+    shutil.copystat(path, temporary)
+    os.replace(temporary, path)
+finally:
+    Path(temporary).unlink(missing_ok=True)
+PY
+
+# Refresh the live fallback too; changing only its source leaves stale entries.
+python3 "$PATCHER" "$GRUBCFG" "$FALLBACK_ID" "$FALLBACK_SOURCE"
+
+# Patch only the normal Fedora entry; keep theme, menu order and Ubuntu intact.
+python3 "$PATCHER" "$GRUBCFG" "$NORMAL_ID" || {
+    echo
+    echo "ERROR: normal Fedora entry wasn't found in Ubuntu grub.cfg."
+    rm -f "$PATCHER"
+    exit 1
+}
+
+# Find persistent source(s).
+mapfile -t SOURCES < <(
+    grep -RIl \
+        -- "--id $NORMAL_ID" \
+        "$UM/etc/grub.d" \
+        "$UM/boot/grub/custom.cfg" \
+        2>/dev/null || true
+)
+
+if [ "${#SOURCES[@]}" -eq 0 ]; then
+
+    echo
+    echo "WARNING: no persistent source for the normal entry was found."
+    echo "Creating one from the currently working live entry."
+
+    SOURCE="$UM/etc/grub.d/08_83n3_fedora"
+
+    python3 - "$GRUBCFG" "$NORMAL_ID" "$SOURCE" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1]).read_text().splitlines(keepends=True)
+target = sys.argv[2]
+dst = Path(sys.argv[3])
+
+block = []
+capture = False
+depth = 0
+
+for line in src:
+
+    if (
+        not capture
+        and line.lstrip().startswith("menuentry ")
+        and re.search(
+            r'--id\s+["\']?' + re.escape(target) + r'["\']?(?:\s|\{)',
+            line
+        )
+    ):
+        capture = True
+
+    if capture:
+        block.append(line)
+        depth += line.count("{") - line.count("}")
+
+        if depth == 0:
+            break
+
+if not block:
+    raise SystemExit("Could not extract Fedora menuentry")
+
+dst.write_text(
+    "#!/bin/sh\n"
+    "exec tail -n +3 $0\n\n"
+    + "".join(block)
+)
+PY
+
+    chmod 0755 "$SOURCE"
+
+    SOURCES=("$SOURCE")
+fi
+
+N=0
+
+for SRC in "${SOURCES[@]}"; do
+    N=$((N + 1))
+
+    cp -a "$SRC" \
+        "$BACKUP/source-$N-$(basename "$SRC")"
+
+    python3 "$PATCHER" "$SRC" "$NORMAL_ID"
+
+    echo "Persistent source:"
+    echo "  $SRC"
+done
+
+rm -f "$PATCHER"
+
+# ==========================================================
+# STABLE SYMLINKS CURRENTLY POINT TO OLD KNOWN-GOOD
+# ==========================================================
+
+ln -sfn "vmlinuz-$OLDK" \
+    /boot/83n3-vmlinuz
+
+ln -sfn "initramfs-$OLDK.img" \
+    /boot/83n3-initramfs.img
+
+echo
+echo "Before update:"
+ls -l /boot/83n3-vmlinuz /boot/83n3-initramfs.img
+
+# ==========================================================
+# UPDATE
+# ==========================================================
+
+echo
+echo "[5/10] Fedora update"
+
+if [ "$ALL" -eq 1 ]; then
+
+    echo "Updating full Fedora system..."
+    dnf upgrade --refresh
+
+else
+
+    echo "Updating kernel stack only..."
+    echo
+    echo "Use --all if you want a full system upgrade."
+
+    dnf upgrade --refresh \
+        'kernel*' \
+        dracut \
+        linux-firmware
+fi
+
+# ==========================================================
+# DISCOVER NEWEST INSTALLED KERNEL
+# ==========================================================
+
+echo
+echo "[6/10] Determine newest installed Fedora kernel"
+
+NEWK="$(
+    rpm -q kernel-core \
+        --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' |
+    sort -V |
+    tail -1
+)"
+
+test -n "$NEWK" || {
+    echo "ERROR: unable to determine newest kernel."
+    exit 1
+}
+
+echo "Old : $OLDK"
+echo "New : $NEWK"
+if [[ "$NEWK" == "$OLDK" ]]; then
+    echo "No newer kernel installed; the working initramfs and boot targets are retained."
+    if [[ "$REBOOT" -eq 1 ]]; then sync; systemctl reboot; fi
+    exit 0
+fi
+
+test -d "/usr/lib/modules/$NEWK" || {
+    echo "ERROR: kernel module tree missing."
+    exit 1
+}
+
+test -f "/boot/vmlinuz-$NEWK" || {
+    echo "ERROR: new kernel image missing."
+    exit 1
+}
+
+# ==========================================================
+# FORCE ALL 83N3 FIRMWARE INTO NEW INITRAMFS
+# ==========================================================
+
+echo
+echo "[7/10] Rebuild new initramfs with Lenovo 83N3 firmware"
+
+CANDIDATE="$(mktemp "/boot/.83n3-initramfs-$NEWK.XXXXXX.img")"
+trap 'rm -f -- "$CANDIDATE"' EXIT
+83n3-build-initramfs \
+    "$NEWK" \
+    "$CANDIDATE"
+
+# ==========================================================
+# VERIFY CRITICAL FIRMWARE
+# ==========================================================
+
+echo
+echo "[8/10] Verify new initramfs"
+
+CHECK="$(
+    lsinitrd "$CANDIDATE"
+)"
+
+for F in \
+    qcdxkmsucpurwa.mbn \
+    qcdxkmsuc8380.mbn \
+    qcadsp8380.mbn \
+    qccdsp8380.mbn
+do
+    if grep -Fq -- "$F" <<< "$CHECK"; then
+        echo "  OK  $F"
+    else
+        echo
+        echo "ERROR: new initramfs is missing:"
+        echo "  $F"
+        echo
+        echo "Stable boot symlinks have NOT been changed."
+        exit 1
+    fi
+done
+
+# ==========================================================
+# PROMOTE NEW KERNEL
+# ==========================================================
+
+echo
+echo "[9/10] Promote verified kernel"
+mv -f -- "$CANDIDATE" "/boot/initramfs-$NEWK.img"
+trap - EXIT
+
+ln -sfn "vmlinuz-$NEWK" \
+    /boot/83n3-vmlinuz
+
+ln -sfn "initramfs-$NEWK.img" \
+    /boot/83n3-initramfs.img
+
+echo
+ls -l /boot/83n3-vmlinuz /boot/83n3-initramfs.img
+
+# ==========================================================
+# SELECT NORMAL ENTRY
+# ==========================================================
+
+echo
+echo "[10/10] Prepare next boot"
+
+if [ -f "$GRUBENV" ]; then
+
+    grub2-editenv "$GRUBENV" unset next_entry \
+        2>/dev/null || true
+
+    grub2-editenv "$GRUBENV" \
+        set "next_entry=$NORMAL_ID"
+
+    grub2-editenv "$GRUBENV" \
+        set menu_show_once_timeout=8
+
+    echo
+    echo "Ubuntu GRUB environment:"
+    grub2-editenv "$GRUBENV" list
+fi
+
+sync
+
+echo
+echo "=========================================================="
+echo " UPDATE COMPLETE"
+echo "=========================================================="
+echo
+echo "Previous known-good:"
+echo "  $OLDK"
+echo
+echo "New verified kernel:"
+echo "  $NEWK"
+echo
+echo "Normal Fedora entry:"
+echo "  uses /83n3-vmlinuz"
+echo "  uses /83n3-initramfs.img"
+echo "  uses /ideapad-slim3-fixed.dtb"
+echo
+echo "Fallback entry:"
+echo "  Fedora KDE 44 ARM64 - Slim 3x [KNOWN GOOD: $OLDK]"
+echo
+echo "Ubuntu GRUB backup:"
+echo "  $BACKUP"
+echo
+
+if [ "$REBOOT" -eq 1 ]; then
+    echo "Rebooting into new kernel..."
+    sync
+    sleep 2
+    systemctl reboot
+else
+    echo "When ready:"
+    echo
+    echo "  sudo reboot"
+    echo
+    echo "Or next time use:"
+    echo
+    echo "  sudo 83n3-safe-kernel-update --reboot"
+fi

@@ -1,0 +1,8 @@
+# Template only: replace all three placeholders before installing via Ubuntu GRUB.
+menuentry "Fedora" --id fedora-kde44-slim3 {
+    insmod ext2
+    search --no-floppy --fs-uuid --set=root <FEDORA_BOOT_UUID>
+    linux /vmlinuz-<KERNEL_VERSION> root=UUID=<FEDORA_ROOT_UUID> rootflags=subvol=root ro rhgb quiet stubble.dtb_override=false clk_ignore_unused pd_ignore_unused regulator_ignore_unused efi=noruntime id_aa64mmfr0.ecv=1 modprobe.blacklist=gpi console=tty0
+    devicetree /ideapad-slim3-fixed.dtb
+    initrd /initramfs-<KERNEL_VERSION>.img
+}

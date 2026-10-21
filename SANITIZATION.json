@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-21",
+  "device_tree_changes": [
+    {
+      "file": "sources/audio/outputs/ideapad-slim3-audio.dtb",
+      "removed_chosen_properties": [
+        "linux,uefi-mmap-size",
+        "bootargs",
+        "secure-boot-mode",
+        "linux,uefi-mmap-start",
+        "kaslr-seed",
+        "linux,uefi-mmap-desc-size",
+        "linux,uefi-mmap-desc-ver",
+        "linux,uefi-system-table"
+      ],
+      "hardware_properties_unchanged": true,
+      "sha256": "ad1096c0e6d2e20854b8b0677a4030b03bbbcd0d5246754e682b2cc71c71b7fb"
+    },
+    {
+      "file": "sources/trackpad/repair-package/dtb-backups/x126100-lenovo-ideapad-slim3.GPIO19-WORKING.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "4be74cfe68397bffb18035af702844484d4d7b0415e7bb39f0a279877dde5ff4"
+    },
+    {
+      "file": "sources/trackpad/repair-package/dtb-backups/x126100-lenovo-ideapad-slim3.before-trackpad-fix.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "3f478f43193de84ec508ade92f81563454bf20814246e48ce46033b96d835af6"
+    },
+    {
+      "file": "sources/trackpad/repair-package/dtb-backups/x126100-lenovo-ideapad-slim3.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "4be74cfe68397bffb18035af702844484d4d7b0415e7bb39f0a279877dde5ff4"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3-trackpad-irqonly.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "b6323d23eba0f73e34d048860bbbc6f5cdbfa8c3ba8aae11604421a472e84c40"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3-trackpad-localpinctrl.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "3b875af62f8660a22eb07695d6ca397ec3d326640932a5189847471cc669a141"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "3f478f43193de84ec508ade92f81563454bf20814246e48ce46033b96d835af6"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3-active.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "0cd5fd5042d0900b7034de9b3981b57d2e33dc7b56b9417e988d891f5d05cf36"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3-trackpad-wakeup.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "2fa6034ada1c4e9b017ee62104ecd4c372c64d9c61130b1b5ea6dca8dc7b1b55"
+    },
+    {
+      "file": "hardware/device-trees/ubuntu/historical/x126100-lenovo-ideapad-slim3-trackpad-edge.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "0cd5fd5042d0900b7034de9b3981b57d2e33dc7b56b9417e988d891f5d05cf36"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "4be74cfe68397bffb18035af702844484d4d7b0415e7bb39f0a279877dde5ff4"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/ideapad-slim3-fixed.dtb.before-audio-20261015-225147",
+      "removed_chosen_properties": [
+        "linux,uefi-mmap-size",
+        "bootargs",
+        "secure-boot-mode",
+        "linux,uefi-mmap-start",
+        "kaslr-seed",
+        "linux,uefi-mmap-desc-size",
+        "linux,uefi-mmap-desc-ver",
+        "linux,uefi-system-table"
+      ],
+      "hardware_properties_unchanged": true,
+      "sha256": "562d1471a079ff9884c091b3163afa24382b240c4301d89ab3b91755b33ff0c0"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3.before-trackpad-fix.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "3f478f43193de84ec508ade92f81563454bf20814246e48ce46033b96d835af6"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/ideapad-slim3-usb2-test.dtb",
+      "removed_chosen_properties": [
+        "linux,uefi-mmap-size",
+        "bootargs",
+        "secure-boot-mode",
+        "linux,uefi-mmap-start",
+        "kaslr-seed",
+        "linux,uefi-mmap-desc-size",
+        "linux,uefi-mmap-desc-ver",
+        "linux,uefi-system-table"
+      ],
+      "hardware_properties_unchanged": true,
+      "sha256": "562d1471a079ff9884c091b3163afa24382b240c4301d89ab3b91755b33ff0c0"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3-trackpad-test.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "4be74cfe68397bffb18035af702844484d4d7b0415e7bb39f0a279877dde5ff4"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3-trackpad-test.pre-gpio19.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "7f766f2bec88ed9258d3157f6f7578bbaac4492c6afd80d8cb93954534e60cfd"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3-trackpad-test.dtb.backup-20261012-142648",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "35a158e1ebf79f5c7fb392e6ce7d20e449354688d3f8009d19d18ab215d69df0"
+    },
+    {
+      "file": "hardware/device-trees/fedora/historical/x126100-lenovo-ideapad-slim3.GPIO19-WORKING.dtb",
+      "removed_chosen_properties": [],
+      "hardware_properties_unchanged": true,
+      "sha256": "4be74cfe68397bffb18035af702844484d4d7b0415e7bb39f0a279877dde5ff4"
+    },
+    {
+      "file": "hardware/device-trees/fedora/active/ideapad-slim3-known-good.dtb",
+      "removed_chosen_properties": [
+        "linux,uefi-mmap-size",
+        "bootargs",
+        "secure-boot-mode",
+        "linux,uefi-mmap-start",
+        "kaslr-seed",
+        "linux,uefi-mmap-desc-size",
+        "linux,uefi-mmap-desc-ver",
+        "linux,uefi-system-table"
+      ],
+      "hardware_properties_unchanged": true,
+      "sha256": "ad1096c0e6d2e20854b8b0677a4030b03bbbcd0d5246754e682b2cc71c71b7fb"
+    },
+    {
+      "file": "hardware/device-trees/fedora/active/ideapad-slim3-fixed.dtb",
+      "removed_chosen_properties": [
+        "linux,uefi-mmap-size",
+        "bootargs",
+        "secure-boot-mode",
+        "linux,uefi-mmap-start",
+        "kaslr-seed",
+        "linux,uefi-mmap-desc-size",
+        "linux,uefi-mmap-desc-ver",
+        "linux,uefi-system-table"
+      ],
+      "hardware_properties_unchanged": true,
+      "sha256": "ad1096c0e6d2e20854b8b0677a4030b03bbbcd0d5246754e682b2cc71c71b7fb"
+    }
+  ],
+  "scope": "Only copied repository files were changed; original system files remain untouched."
+}

@@ -1,0 +1,78 @@
+#!/bin/bash
+
+NODE=/proc/device-tree/soc@0/usb@a800000
+DEV=/sys/bus/platform/devices/a800000.usb
+
+echo "================================================"
+echo "  83N3 FINGERPRINT USB2 TEST"
+echo "================================================"
+
+echo
+echo "=== TEST DTB ==="
+
+if [ -f /proc/device-tree/lenovo-83n3-usb2-test ]; then
+    printf "marker: "
+    tr -d '\0' </proc/device-tree/lenovo-83n3-usb2-test
+    echo
+else
+    echo "TEST DTB NOT ACTIVE"
+fi
+
+echo
+echo "=== USB SETTINGS ==="
+
+printf "maximum-speed: "
+if [ -f "$NODE/maximum-speed" ]; then
+    tr -d '\0' < "$NODE/maximum-speed"
+    echo
+else
+    echo "MISSING"
+fi
+
+printf "phy-names: "
+if [ -f "$NODE/phy-names" ]; then
+    tr '\0' ' ' < "$NODE/phy-names"
+    echo
+else
+    echo "MISSING"
+fi
+
+echo
+echo "=== A800000 ==="
+
+if [ -L "$DEV/driver" ]; then
+    echo "BOUND -> $(basename "$(readlink -f "$DEV/driver")")"
+else
+    echo "UNBOUND"
+fi
+
+echo
+echo "=== USB DEVICES ==="
+lsusb
+
+echo
+echo "=== GOODIX ==="
+
+if lsusb | grep -Ei '27c6:650a|goodix'; then
+    echo
+    echo "############################################"
+    echo " GOODIX FINGERPRINT SENSOR DETECTED"
+    echo "############################################"
+    echo
+    echo "Run:"
+    echo "    fprintd-enroll"
+else
+    echo "Goodix sensor not detected."
+fi
+
+echo
+echo "=== DEFERRED ==="
+sudo cat /sys/kernel/debug/devices_deferred 2>/dev/null |
+    grep -Ei 'a800000|usb' ||
+    echo "No deferred a800000 probe."
+
+echo
+echo "=== KERNEL LOG ==="
+sudo dmesg |
+    grep -Ei 'a800000|27c6|650a|goodix|dwc3|fd9000|eusb' |
+    tail -120

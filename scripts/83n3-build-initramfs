@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KVER="${1:?Usage: 83n3-build-initramfs KERNEL_VERSION [OUTPUT]}"
+OUT="${2:-/boot/initramfs-$KVER.img}"
+
+FW="/usr/lib/firmware/qcom/x1p42100/LENOVO/83N3"
+TARGET="/usr/lib/firmware/qcom/x1p42100/LENOVO/83N3"
+
+STAGE="$(mktemp -d /var/tmp/83n3-firmware.XXXXXX)"
+
+cleanup() {
+    rm -rf "$STAGE"
+}
+
+trap cleanup EXIT
+
+test -d "$FW" || {
+    echo "ERROR: missing $FW"
+    exit 1
+}
+
+test -f "/boot/vmlinuz-$KVER" || {
+    echo "ERROR: missing kernel /boot/vmlinuz-$KVER"
+    exit 1
+}
+
+echo "Staging machine-specific firmware..."
+
+# IMPORTANT:
+# -a = preserve structure
+# -L = dereference symlinks so the initramfs receives REAL FILES
+cp -aL "$FW"/. "$STAGE"/
+
+for F in \
+    qcdxkmsucpurwa.mbn \
+    qcdxkmsuc8380.mbn \
+    qcadsp8380.mbn \
+    qccdsp8380.mbn
+do
+    test -f "$STAGE/$F" || {
+        echo "ERROR: staging failed for $F"
+        exit 1
+    }
+done
+
+echo "Building initramfs for:"
+echo "  $KVER"
+
+echo "Output:"
+echo "  $OUT"
+
+dracut \
+    --force \
+    --kver "$KVER" \
+    --include "$STAGE" "$TARGET" \
+    "$OUT"
+
+test -f "$OUT" || {
+    echo "ERROR: dracut didn't create $OUT"
+    exit 1
+}
+
+echo
+echo "Verifying injected firmware..."
+
+LIST="$(lsinitrd "$OUT")"
+
+FAILED=0
+
+for F in \
+    qcdxkmsucpurwa.mbn \
+    qcdxkmsuc8380.mbn \
+    qcadsp8380.mbn \
+    qccdsp8380.mbn
+do
+    if grep -Fq "$F" <<< "$LIST"; then
+        echo "  OK      $F"
+    else
+        echo "  MISSING $F"
+        FAILED=1
+    fi
+done
+
+if [ "$FAILED" -ne 0 ]; then
+    echo
+    echo "ERROR: initramfs verification failed."
+    exit 1
+fi
+
+echo
+echo "83N3 firmware injection VERIFIED."
